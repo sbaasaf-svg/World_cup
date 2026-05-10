@@ -1,125 +1,80 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="מונדיאל - אפליקציית הימורים", layout="wide")
+# הגדרות דף
+st.set_page_config(page_title="World Cup 2026 Predictor", page_icon="⚽")
 
-st.title("⚽ אפליקציית הימורים על המונדיאל")
-
-# -----------------------------
-# משחקי שלב הבתים
-# -----------------------------
-matches = [
-    {"id": 1, "team1": "Brazil", "team2": "France"},
-    {"id": 2, "team1": "Argentina", "team2": "Germany"},
-    {"id": 3, "team1": "Spain", "team2": "England"},
-    {"id": 4, "team1": "Portugal", "team2": "Italy"},
+# נתוני משחקים - שלב הבתים (חלקי - דוגמה למבנה המלא)
+# הערה: במונדיאל 2026 יש 104 משחקים. כאן מופיעים משחקי הפתיחה המרכזיים.
+games_data = [
+    {"id": 1, "group": "A", "team1": "Mexico", "flag1": "🇲🇽", "team2": "TBD", "flag2": "❓", "date": "2026-06-11"},
+    {"id": 2, "group": "A", "team1": "USA", "flag1": "🇺🇸", "team2": "TBD", "flag2": "❓", "date": "2026-06-12"},
+    {"id": 3, "group": "B", "team1": "Canada", "flag1": "🇨🇦", "team2": "TBD", "flag2": "❓", "date": "2026-06-12"},
+    {"id": 4, "group": "C", "team1": "Argentina", "flag1": "🇦🇷", "team2": "TBD", "flag2": "❓", "date": "2026-06-13"},
+    {"id": 5, "group": "D", "team1": "Brazil", "flag1": "🇧🇷", "team2": "TBD", "flag2": "❓", "date": "2026-06-14"},
 ]
 
-# -----------------------------
-# תוצאות אמת (אפשר לעדכן אחר כך)
-# -----------------------------
-real_results = {
-    1: (2, 1),
-    2: (1, 1),
-    3: (0, 2),
-    4: (3, 0),
-}
+# ניהול מצב (Session State)
+if 'user_predictions' not in st.session_state:
+    st.session_state.user_predictions = {}
+if 'actual_results' not in st.session_state:
+    st.session_state.actual_results = {}
 
-# -----------------------------
-# פונקציית ניקוד
-# -----------------------------
-def calculate_points(pred1, pred2, real1, real2):
-    # תוצאה מדויקת
-    if pred1 == real1 and pred2 == real2:
-        return 10
+st.title("🏆 מנחש תוצאות מונדיאל 2026")
 
-    # פגיעה במנצחת/תיקו
-    pred_diff = pred1 - pred2
-    real_diff = real1 - real2
+tabs = st.tabs(["🎯 הימורי משתמש", "📊 תוצאות אמת וניקוד"])
 
-    if (
-        (pred_diff > 0 and real_diff > 0)
-        or (pred_diff < 0 and real_diff < 0)
-        or (pred_diff == 0 and real_diff == 0)
-    ):
-        return 5
+# --- טאב 1: הימורי משתמש ---
+with tabs[0]:
+    st.header("הזן את התחזית שלך")
+    for game in games_data:
+        col1, col2, col3, col4, col5 = st.columns([1, 2, 1, 2, 1])
+        with col2:
+            st.write(f"{game['flag1']} {game['team1']}")
+        with col3:
+            pred = st.text_input(f"תוצאה {game['id']}", placeholder="0-0", key=f"pred_{game['id']}")
+            if pred:
+                st.session_state.user_predictions[game['id']] = pred
+        with col4:
+            st.write(f"{game['team2']} {game['flag2']}")
+    
+    if st.button("שמור הימורים"):
+        st.success("ההימורים נשמרו בהצלחה!")
+        st.subheader("הסיכום שלך:")
+        for g_id, score in st.session_state.user_predictions.items():
+            game = next(g for g in games_data if g['id'] == g_id)
+            st.write(f"משחק {g_id}: {game['team1']} {score} {game['team2']}")
 
-    # פגיעה רק בכמות שערים של קבוצה אחת
-    if pred1 == real1 or pred2 == real2:
-        return 2
+# --- טאב 2: תוצאות אמת וניקוד ---
+with tabs[1]:
+    st.header("ניהול תוצאות אמת (מנהל)")
+    
+    for game in games_data:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"{game['team1']} נגד {game['team2']}")
+        with col2:
+            actual = st.text_input(f"תוצאה סופית {game['id']}", key=f"actual_{game['id']}")
+            if actual:
+                st.session_state.actual_results[game['id']] = actual
 
-    return 0
-
-
-# -----------------------------
-# טופס משתמש
-# -----------------------------
-st.header("🎯 הכנס את ההימורים שלך")
-
-username = st.text_input("שם המשתתף")
-
-predictions = {}
-
-for match in matches:
-    st.subheader(f"{match['team1']} 🇧🇷 vs 🇫🇷 {match['team2']}")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        score1 = st.number_input(
-            f"שערים {match['team1']}",
-            min_value=0,
-            max_value=20,
-            key=f"{match['id']}_1",
-        )
-
-    with col2:
-        score2 = st.number_input(
-            f"שערים {match['team2']}",
-            min_value=0,
-            max_value=20,
-            key=f"{match['id']}_2",
-        )
-
-    predictions[match["id"]] = (score1, score2)
-
-# -----------------------------
-# חישוב ניקוד
-# -----------------------------
-if st.button("חשב ניקוד"):
-    total_points = 0
-    rows = []
-
-    for match in matches:
-        match_id = match["id"]
-
-        pred1, pred2 = predictions[match_id]
-        real1, real2 = real_results[match_id]
-
-        points = calculate_points(pred1, pred2, real1, real2)
-        total_points += points
-
-        rows.append({
-            "משחק": f"{match['team1']} - {match['team2']}",
-            "ניחוש": f"{pred1}:{pred2}",
-            "תוצאה אמיתית": f"{real1}:{real2}",
-            "נקודות": points
-        })
-
-    st.success(f"🏆 {username} קיבל {total_points} נקודות!")
-
-    df = pd.DataFrame(rows)
-    st.dataframe(df, use_container_width=True)
-
-# -----------------------------
-# חוקי הניקוד
-# -----------------------------
-st.sidebar.title("📜 חוקי הניקוד")
-
-st.sidebar.write("""
-### שיטת הניקוד:
-- ✅ תוצאה מדויקת → 10 נקודות
-- ✅ פגיעה במנצחת/תיקו → 5 נקודות
-- ✅ פגיעה בשערים של קבוצה אחת → 2 נקודות
-- ❌ טעות מלאה → 0 נקודות
-""")
+    st.divider()
+    st.header("חישוב ניקוד")
+    
+    if st.button("חשב ניקוד עכשיו"):
+        total_score = 0
+        calculation_made = False
+        
+        for g_id, actual in st.session_state.actual_results.items():
+            if g_id in st.session_state.user_predictions:
+                prediction = st.session_state.user_predictions[g_id]
+                # לוגיקת ניקוד בסיסית: פגיעה בול = 3 נקודות
+                if prediction == actual:
+                    total_score += 3
+                calculation_made = True
+        
+        if calculation_made:
+            st.balloons()
+            st.metric("הניקוד הכולל שלך", f"{total_score} נקודות")
+        else:
+            st.warning("לא ניתן לחשב ניקוד: חסרים הימורים או תוצאות אמת.")
