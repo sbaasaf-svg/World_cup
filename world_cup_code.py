@@ -1,9 +1,31 @@
 import streamlit as st
+import json
+import os
 
 # הגדרות דף
 st.set_page_config(page_title="2026 World Cup Predictor", page_icon="⚽", layout="wide")
 
-# מילון דגלים למדינות המשתתפות (לפי הנתונים מהלינק)
+# נתיבים לקבצי שמירה מקומיים (כדי שהנתונים לא יימחקו ברענון)
+PREDICTIONS_FILE = "user_predictions.json"
+ACTUAL_RESULTS_FILE = "actual_results.json"
+
+def save_data(data, filename):
+    with open(filename, 'w') as f:
+        json.dump(data, f)
+
+def load_data(filename):
+    if os.path.exists(filename):
+        with open(filename, 'r') as f:
+            return json.load(f)
+    return {}
+
+# טעינת נתונים ראשונית
+if 'predictions' not in st.session_state:
+    st.session_state.predictions = load_data(PREDICTIONS_FILE)
+if 'actual_results' not in st.session_state:
+    st.session_state.actual_results = load_data(ACTUAL_RESULTS_FILE)
+
+# מילון דגלים
 flags = {
     "Mexico": "🇲🇽", "South Africa": "🇿🇦", "South Korea": "🇰🇷", "Czechia": "🇨🇿",
     "Canada": "🇨🇦", "Bosnia and Herzegovina": "🇧🇦", "USA": "🇺🇸", "Paraguay": "🇵🇾",
@@ -17,96 +39,88 @@ flags = {
     "Argentina": "🇦🇷", "Algeria": "🇩🇿", "Austria": "🇦🇹", "Jordan": "🇯🇴"
 }
 
-# נתוני המשחקים המדויקים מהמקור שסופק
 games_data = [
-    {"id": 1, "date": "11-Jun-26", "t1": "Mexico", "t2": "South Africa", "grp": "A"},
-    {"id": 2, "date": "11-Jun-26", "t1": "South Korea", "t2": "Czechia", "grp": "A"},
-    {"id": 3, "date": "12-Jun-26", "t1": "Canada", "t2": "Bosnia and Herzegovina", "grp": "B"},
-    {"id": 4, "date": "12-Jun-26", "t1": "USA", "t2": "Paraguay", "grp": "D"},
-    {"id": 5, "date": "13-Jun-26", "t1": "Haiti", "t2": "Scotland", "grp": "C"},
-    {"id": 6, "date": "13-Jun-26", "t1": "Australia", "t2": "Türkiye", "grp": "D"},
-    {"id": 7, "date": "13-Jun-26", "t1": "Brazil", "t2": "Morocco", "grp": "C"},
-    {"id": 8, "date": "13-Jun-26", "t1": "Qatar", "t2": "Switzerland", "grp": "B"},
-    {"id": 9, "date": "14-Jun-26", "t1": "Ivory Coast", "t2": "Ecuador", "grp": "E"},
-    {"id": 10, "date": "14-Jun-26", "t1": "Germany", "t2": "Curaçao", "grp": "E"},
-    {"id": 11, "date": "14-Jun-26", "t1": "Netherlands", "t2": "Japan", "grp": "F"},
-    {"id": 12, "date": "14-Jun-26", "t1": "Sweden", "t2": "Tunisia", "grp": "F"},
+    {"id": "1", "date": "11-Jun-26", "t1": "Mexico", "t2": "South Africa"},
+    {"id": "2", "date": "11-Jun-26", "t1": "South Korea", "t2": "Czechia"},
+    {"id": "3", "date": "12-Jun-26", "t1": "Canada", "t2": "Bosnia and Herzegovina"},
+    {"id": "4", "date": "12-Jun-26", "t1": "USA", "t2": "Paraguay"},
 ]
 
-# ניהול מצב (Session State) לשמירת הנתונים
-if 'predictions' not in st.session_state:
-    st.session_state.predictions = {}
-if 'actual_results' not in st.session_state:
-    st.session_state.actual_results = {}
+st.title("🏆 אפליקציית מונדיאל 2026 - גרסה יציבה")
 
-st.title("🏆 מנהל הימורי מונדיאל 2026")
+tab1, tab2, tab3 = st.tabs(["🎯 הימורים", "📊 הניקוד שלי", "🛠️ תוצאות אמת"])
 
-tab1, tab2, tab3 = st.tabs(["📝 הזנת הימורים", "📋 ההימורים שלי", "⚙️ טאב מנהל: תוצאות אמת"])
-
-# --- טאב 1: הזנת הימורים ---
+# --- טאב 1: הימורים עם חיצים ---
 with tab1:
-    st.header("הזן את התחזית שלך לשלב הבתים")
+    st.header("הזן את התחזית שלך")
+    st.caption("השתמש בחיצים כדי לקבוע את כמות השערים")
+    
     for g in games_data:
-        col1, col2, col3, col4, col5 = st.columns([1, 2, 2, 2, 1])
+        g_id = g['id']
+        # טעינת ערכים קיימים אם ישנם
+        existing_pred = st.session_state.predictions.get(g_id, "0-0").split('-')
+        val1 = int(existing_pred[0]) if len(existing_pred) == 2 else 0
+        val2 = int(existing_pred[1]) if len(existing_pred) == 2 else 0
+
+        col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 2])
+        
+        with col1:
+            st.write(f"{flags.get(g['t1'], '')} {g['t1']}")
         with col2:
-            st.write(f"{flags.get(g['t1'], '🏳️')} {g['t1']}")
+            s1 = st.number_input("", min_value=0, max_value=20, value=val1, key=f"s1_{g_id}", label_visibility="collapsed")
         with col3:
-            # הזנת תוצאה בפורמט X-X
-            score = st.text_input(f"תוצאה {g['id']}", key=f"in_{g['id']}", placeholder="0-0")
-            if score:
-                st.session_state.predictions[g['id']] = score
+            st.write("—")
         with col4:
-            st.write(f"{g['t2']} {flags.get(g['t2'], '🏳️')}")
-    st.info("התוצאות נשמרות אוטומטית בעת ההקלדה.")
+            s2 = st.number_input("", min_value=0, max_value=20, value=val2, key=f"s2_{g_id}", label_visibility="collapsed")
+        with col5:
+            st.write(f"{g['t2']} {flags.get(g['t2'], '')}")
+        
+        # עדכון ושמירה אוטומטית לקובץ
+        new_pred = f"{s1}-{s2}"
+        if new_pred != st.session_state.predictions.get(g_id):
+            st.session_state.predictions[g_id] = new_pred
+            save_data(st.session_state.predictions, PREDICTIONS_FILE)
 
-# --- טאב 2: הצגת הימורים וניקוד ---
+# --- טאב 2: ניקוד ---
 with tab2:
-    st.header("סיכום ההימורים שלך וניקוד")
-    if not st.session_state.predictions:
-        st.warning("טרם הזנת הימורים.")
-    else:
-        total_points = 0
-        results_list = []
-        
-        for g in games_data:
-            g_id = g['id']
-            user_pred = st.session_state.predictions.get(g_id, "לא הוזן")
-            actual = st.session_state.actual_results.get(g_id, None)
-            
-            points = 0
-            status = "ממתין לתוצאה"
-            
-            if actual:
-                if user_pred == actual:
-                    points = 3
-                    status = "✅ פגיעה בול! (3 נק')"
-                else:
-                    status = f"❌ טעות (התוצאה: {actual})"
-                total_points += points
-            
-            results_list.append({
-                "משחק": f"{g['t1']} vs {g['t2']}",
-                "הימור שלך": user_pred,
-                "תוצאת אמת": actual if actual else "טרם עודכן",
-                "סטטוס": status
-            })
-        
-        st.table(results_list)
-        
-        if st.session_state.actual_results:
-            st.metric("ניקוד כולל", f"{total_points} נקודות")
-        else:
-            st.info("הניקוד יוצג לאחר שיוזנו תוצאות אמת בטאב המנהל.")
-
-# --- טאב 3: הזנת תוצאות אמת (למנהל) ---
-with tab3:
-    st.header("עדכון תוצאות מהשטח")
-    st.write("הזן כאן את תוצאות המשחקים כפי שהסתיימו בפועל:")
+    st.header("מצב הניקוד")
+    points = 0
     for g in games_data:
-        c1, c2 = st.columns([3, 1])
+        g_id = g['id']
+        pred = st.session_state.predictions.get(g_id)
+        actual = st.session_state.actual_results.get(g_id)
+        
+        if actual:
+            if pred == actual:
+                points += 3
+                st.success(f"{g['t1']} vs {g['t2']}: הימרת {pred}, תוצאה {actual} 🎯 (+3 נק')")
+            else:
+                st.error(f"{g['t1']} vs {g['t2']}: הימרת {pred}, תוצאה {actual} ❌")
+        else:
+            st.info(f"{g['t1']} vs {g['t2']}: הימרת {pred}. מחכים לתוצאת אמת...")
+    
+    st.metric("סה\"כ ניקוד", f"{points} נקודות")
+
+# --- טאב 3: תוצאות אמת (עדכון מיידי) ---
+with tab3:
+    st.header("ניהול תוצאות אמת")
+    for g in games_data:
+        g_id = g['id']
+        existing_actual = st.session_state.actual_results.get(g_id, "0-0").split('-')
+        act_val1 = int(existing_actual[0]) if len(existing_actual) == 2 else 0
+        act_val2 = int(existing_actual[1]) if len(existing_actual) == 2 else 0
+
+        c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
         with c1:
-            st.write(f"משחק {g['id']}: {g['t1']} נגד {g['t2']}")
+            st.write(f"תוצאה סופית: {g['t1']} - {g['t2']}")
         with c2:
-            act_score = st.text_input(f"תוצאה סופית {g['id']}", key=f"act_{g['id']}")
-            if act_score:
-                st.session_state.actual_results[g['id']] = act_score
+            a1 = st.number_input("T1", min_value=0, value=act_val1, key=f"a1_{g_id}", label_visibility="collapsed")
+        with c3:
+            a2 = st.number_input("T2", min_value=0, value=act_val2, key=f"a2_{g_id}", label_visibility="collapsed")
+        
+        # שמירה אוטומטית ברגע שהמנהל משנה ערך
+        new_actual = f"{a1}-{a2}"
+        if new_actual != st.session_state.actual_results.get(g_id):
+            st.session_state.actual_results[g_id] = new_actual
+            save_data(st.session_state.actual_results, ACTUAL_RESULTS_FILE)
+            st.rerun() # מרענן את האפליקציה כדי לעדכן ניקוד בטאבים אחרים מיידית
